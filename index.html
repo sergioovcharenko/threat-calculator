@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#111827" />
+  <title>Threat Calculator</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Ймовірні загрози</h1>
+      <p>Оцінка відстані, ETA та статистичного залишку цілей</p>
+    </div>
+    <button id="installBtn" hidden>Встановити</button>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="grid two">
+        <label>Тип цілі
+          <select id="targetType">
+            <option value="БпЛА">БпЛА</option>
+            <option value="Крилата ракета">Крилата ракета</option>
+            <option value="Інша">Інша</option>
+          </select>
+        </label>
+        <label>Кількість
+          <input id="count" type="number" min="1" value="10">
+        </label>
+        <label>Швидкість, км/год
+          <input id="speed" type="number" min="1" value="450">
+          <small id="speedMode">Підставлено за замовчуванням</small>
+        </label>
+        <label>Ймовірність перехоплення, %
+          <input id="intercept" type="number" min="0" max="100" value="70">
+        </label>
+      </div>
+      <div class="actions">
+        <button id="useDefault">450 км/год</button>
+        <button id="addTarget">Додати ціль на карту</button>
+        <button id="clearTargets" class="secondary">Очистити цілі</button>
+      </div>
+      <p class="hint">Спочатку натисни на карту, щоб встановити контрольну точку. Потім натисни «Додати ціль» і вибери місце цілі на карті.</p>
+    </section>
+
+    <section id="map"></section>
+
+    <section class="stats">
+      <div class="card"><span>Найближча ціль</span><strong id="nearest">—</strong></div>
+      <div class="card"><span>Найменший ETA</span><strong id="minEta">—</strong></div>
+      <div class="card"><span>Усього цілей</span><strong id="totalTargets">0</strong></div>
+    </section>
+
+    <section class="panel">
+      <h2>Розрахунок</h2>
+      <div class="tableWrap">
+        <table>
+          <thead>
+            <tr><th>Тип</th><th>К-сть</th><th>Відстань</th><th>Швидкість</th><th>ETA</th><th>Перехоплення</th><th>Очікуваний залишок</th><th></th></tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div class="examples">
+        <h3>Швидка статистика</h3>
+        <div id="quickStats"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>Це статистична оцінка, а не точний прогноз маршруту чи результату перехоплення.</footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
