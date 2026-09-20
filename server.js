@@ -35,12 +35,14 @@ function parseReport(text, date, link) {
   const launched = findFirstNumber(t, [
     /атакував(?:ла|ли)?\s+(\d{1,4})[-\sа-яіїєґ]*\s+(?:ударн\w*\s+)?БпЛА/i,
     /атакував(?:ла|ли)?\s+(\d{1,4})[-\sа-яіїєґ]*\s+ударними БпЛА/i,
-    /противник атакував\s+(\d{1,4})/i
+    /противник атакував\s+(\d{1,4})/i,
+    /застосував(?:ла|ли)?\s+(\d{1,4})[-\sа-яіїєґ]*\s+(?:ударн\w*\s+)?БпЛА/i
   ]);
   const neutralized = findFirstNumber(t, [
     /збито\/подавлено\s+(\d{1,4})\s+ворож/i,
     /збито\s+та\s+подавлено\s+(\d{1,4})/i,
-    /збито\s+(\d{1,4})\s+(?:ворож\w*\s+)?БпЛА/i
+    /збито\s+(\d{1,4})\s+(?:ворож\w*\s+)?БпЛА/i,
+    /нейтралізовано\s+(\d{1,4})/i
   ]);
 
   if (!launched || neutralized === null || launched < neutralized) return null;
@@ -54,31 +56,57 @@ function parseReport(text, date, link) {
   };
 }
 
-async function loadStats() {
-  const response = await fetch(SOURCE, {
-    headers: { 'User-Agent': 'Mozilla/5.0 ThreatCalculator/1.2' }
+async function fetchTelegramPage(before) {
+  const url = before ? SOURCE + '?before=' + before : SOURCE;
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1',
+      'Accept-Language': 'uk,en;q=0.8'
+    }
   });
   if (!response.ok) throw new Error('Official source HTTP ' + response.status);
-  const html = await response.text();
-  const $ = cheerio.load(html);
+  return response.text();
+}
+
+async function loadStats() {
   const reports = [];
   const now = Date.now();
+  let before = null;
 
-  $('.tgme_widget_message_wrap').each((_, el) => {
-    const root = $(el);
-    const timeEl = root.find('time').first();
-    const iso = timeEl.attr('datetime');
-    const dateMs = iso ? Date.parse(iso) : NaN;
-    if (!Number.isFinite(dateMs) || now - dateMs < MIN_AGE_MS) return;
+  for (let page = 0; page < 12 && reports.length < 30; page++) {
+    const html = await fetchTelegramPage(before);
+    const $ = cheerio.load(html);
+    let oldestId = null;
 
-    const text = root.find('.tgme_widget_message_text').text();
-    if (!text || /атака триває|в повітряному просторі.*ворож/i.test(text)) return;
+    $('.tgme_widget_message_wrap').each((_, el) => {
+      const root = $(el);
+      const message = root.find('.tgme_widget_message').first();
+      const post = message.attr('data-post') || '';
+      const idMatch = post.match(/\/(\d+)$/);
+      const postId = idMatch ? Number(idMatch[1]) : null;
+      if (postId && (!oldestId || postId < oldestId)) oldestId = postId;
 
-    const post = root.find('.tgme_widget_message').attr('data-post');
-    const link = post ? 'https://t.me/' + post : SOURCE;
-    const parsed = parseReport(text, new Date(dateMs).toISOString(), link);
-    if (parsed) reports.push(parsed);
-  });
+      const iso = root.find('time').first().attr('datetime');
+      const dateMs = iso ? Date.parse(iso) : NaN;
+      if (!Number.isFinite(dateMs) || now - dateMs < MIN_AGE_MS) return;
+
+      const text = root.find('.tgme_widget_message_text').text();
+      if (!text) return;
+
+      // Ignore operational/live routing posts. Only completed summary-style posts are parsed.
+      if (/курс(?:ом)?|напрямк|загроза|в повітряному просторі|атака триває/i.test(text) &&
+          !/збито|подавлено|нейтралізовано/i.test(text)) return;
+
+      const link = post ? 'https://t.me/' + post : SOURCE;
+      const parsed = parseReport(text, new Date(dateMs).toISOString(), link);
+      if (parsed) reports.push(parsed);
+    });
+
+    if (!oldestId || oldestId <= 1) break;
+    const nextBefore = oldestId;
+    if (nextBefore === before) break;
+    before = nextBefore;
+  }
 
   reports.sort((a,b) => new Date(b.date) - new Date(a.date));
   const unique = [];
@@ -99,7 +127,7 @@ async function loadStats() {
   return {
     source: 'Повітряні Сили ЗС України',
     sourceUrl: SOURCE,
-    policy: 'Завершені офіційні зведення старші 24 годин; без поточних маршрутів і живих цілей.',
+    policy: 'Лише завершені офіційні зведення старші 24 годин; без поточних маршрутів і живих цілей.',
     generatedAt: new Date().toISOString(),
     reportsUsed: selected.length,
     totals: { launched, neutralized, notNeutralized: Math.max(0, launched-neutralized) },
@@ -120,6 +148,7 @@ app.get('/api/stats', async (req, res) => {
     res.set('Cache-Control', 'no-store');
     res.json(cache.data);
   } catch (e) {
+    console.error('stats error:', e.message);
     res.status(503).json({ error: 'Не вдалося отримати завершені офіційні зведення', detail: e.message });
   }
 });
@@ -145,6 +174,7 @@ app.get('/api/geocode', async (req,res)=>{
     res.set('Cache-Control','no-store');
     res.json({results});
   }catch(e){
+    console.error('geocode error:', e.message);
     res.status(503).json({error:'Не вдалося виконати пошук місця'});
   }
 });
