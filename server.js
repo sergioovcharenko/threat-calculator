@@ -7,7 +7,16 @@ const port = process.env.PORT || 3000;
 const SOURCE = 'https://t.me/s/kpszsu';
 const MIN_AGE_MS = 24 * 60 * 60 * 1000;
 
-app.use(express.static(__dirname, { maxAge: 0 }));
+app.use((req,res,next)=>{
+  if(!req.path.startsWith('/api/')){
+    res.set('Cache-Control','no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma','no-cache');
+    res.set('Expires','0');
+    res.set('Surrogate-Control','no-store');
+  }
+  next();
+});
+app.use(express.static(__dirname, { etag:false, lastModified:false, maxAge:0 }));
 
 function cleanText(s='') {
   return s.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
@@ -140,5 +149,5 @@ app.get('/api/geocode', async (req,res)=>{
   }
 });
 
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html'), {headers:{'Cache-Control':'no-store'}}));
 app.listen(port, '0.0.0.0', () => console.log('Threat Calculator running on port ' + port));
