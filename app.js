@@ -33,13 +33,23 @@ speedMode.dataset.default='1';
 
 function render(){
   rows.innerHTML='';let nearest=Infinity,minEta=Infinity,total=0;
-  for(const t of targets){
-    const d=home?km(home,{lat:t.lat,lng:t.lng}):0, h=d/t.speed, remain=t.count*(1-t.intercept/100), mins=h*60;
+
+  const sortedTargets=[...targets].map(t=>{
+    const d=home?km(home,{lat:t.lat,lng:t.lng}):0;
+    const h=d/t.speed;
+    return {t,d,h};
+  }).sort((a,b)=>a.d-b.d || a.h-b.h);
+
+  sortedTargets.forEach((item,index)=>{
+    const {t,d,h}=item;
+    const remain=t.count*(1-t.intercept/100), mins=h*60;
     nearest=Math.min(nearest,d);minEta=Math.min(minEta,h);total+=t.count;
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${t.type}</td><td>${t.count}</td><td>${d.toFixed(1)} км</td><td>${t.speed} км/год ${t.speedDefault?'<small>(деф.)</small>':''}</td><td class="${threatClass(mins)}">${etaText(h)}</td><td>${t.intercept}%</td><td>≈ ${remain.toFixed(1)}</td><td><button data-id="${t.id}">×</button></td>`;
+    const order=index===0?'⚠️ 1 — найближча':(index+1)+'';
+    tr.innerHTML=`<td><strong>${order}</strong><br>${t.type}</td><td>${t.count}</td><td>${d.toFixed(1)} км</td><td>${t.speed} км/год ${t.speedDefault?'<small>(деф.)</small>':''}</td><td class="${threatClass(mins)}">${etaText(h)}</td><td>${t.intercept}%</td><td>≈ ${remain.toFixed(1)}</td><td><button data-id="${t.id}">×</button></td>`;
     rows.appendChild(tr);
-  }
+  });
+
   rows.querySelectorAll('button').forEach(b=>b.onclick=()=>{const id=+b.dataset.id;const t=targets.find(x=>x.id===id);if(t)map.removeLayer(t.marker);targets=targets.filter(x=>x.id!==id);render()});
   nearestEl.textContent=targets.length?nearest.toFixed(1)+' км':'—';
   minEtaEl.textContent=targets.length?etaText(minEta):'—';
