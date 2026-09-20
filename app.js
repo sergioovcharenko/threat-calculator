@@ -1,64 +1,56 @@
-const map=L.map('map').setView([49.0,31.0],6);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
+const $ = id => document.getElementById(id);
+const fmtPct = v => (v*100).toFixed(1) + '%';
+const fmtDate = iso => new Intl.DateTimeFormat('uk-UA',{dateStyle:'medium'}).format(new Date(iso));
 
-let home=null,homeMarker=null,pendingTarget=false,targets=[];
-const rows=document.getElementById('rows'), nearestEl=document.getElementById('nearest'), minEtaEl=document.getElementById('minEta'), totalEl=document.getElementById('totalTargets');
-const speed=document.getElementById('speed'), speedMode=document.getElementById('speedMode');
+async function load() {
+  $('refreshBtn').disabled = true;
+  $('refreshBtn').textContent = 'Оновлення…';
+  try {
+    const r = await fetch('/api/stats', {cache:'no-store'});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || d.error || 'Помилка джерела');
 
-const saved=localStorage.getItem('threat-home');
-if(saved){home=JSON.parse(saved);homeMarker=L.marker(home).addTo(map).bindPopup('Контрольна точка');map.setView(home,8)}
+    const latest = d.latestCompleted;
+    $('latestCount').textContent = latest.launched;
+    $('latestNeutralized').textContent = latest.neutralized;
+    $('latestRate').textContent = fmtPct(latest.rate);
+    $('latestRemaining').textContent = latest.missed;
+    $('avgRate').textContent = fmtPct(d.weightedRate);
+    $('reportsUsed').textContent = d.reportsUsed + ' завершених зведень';
 
-function km(a,b){const R=6371,dLat=(b.lat-a.lat)*Math.PI/180,dLon=(b.lng-a.lng)*Math.PI/180;const x=Math.sin(dLat/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLon/2)**2;return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
-function etaText(hours){const mins=Math.round(hours*60); if(mins<60)return mins+' хв'; return Math.floor(mins/60)+' год '+(mins%60)+' хв'}
-function threatClass(mins){return mins<15?'danger':mins<30?'warn':'ok'}
+    const expectedNeutralized = Math.round(latest.launched * d.weightedRate);
+    const expectedRemaining = Math.max(0, latest.launched - expectedNeutralized);
+    $('projectCount').textContent = latest.launched;
+    $('projectNeutralized').textContent = '≈ ' + expectedNeutralized;
+    $('projectRemaining').textContent = '≈ ' + expectedRemaining;
 
-map.on('click',e=>{
-  if(pendingTarget){
-    if(!home){alert('Спочатку встанови контрольну точку');pendingTarget=false;return}
-    const t={id:Date.now(),lat:e.latlng.lat,lng:e.latlng.lng,type:document.getElementById('targetType').value,count:+document.getElementById('count').value||1,speed:+speed.value||450,intercept:+document.getElementById('intercept').value||0,speedDefault:speedMode.dataset.default==='1'};
-    t.marker=L.marker([t.lat,t.lng]).addTo(map).bindPopup(t.type);
-    targets.push(t);pendingTarget=false;render();return;
+    $('sourceName').textContent = d.source;
+    $('policy').textContent = d.policy;
+    $('updatedAt').textContent = 'Оновлено: ' + new Intl.DateTimeFormat('uk-UA',{dateStyle:'medium',timeStyle:'short'}).format(new Date(d.generatedAt));
+
+    $('rows').innerHTML = d.recent.map(x => `
+      <tr>
+        <td>${fmtDate(x.date)}</td>
+        <td>${x.launched}</td>
+        <td>${x.neutralized}</td>
+        <td>${fmtPct(x.rate)}</td>
+        <td><a href="${x.sourceUrl}" target="_blank" rel="noopener">офіційний допис</a></td>
+      </tr>`).join('');
+  } catch (e) {
+    $('rows').innerHTML = '<tr><td colspan="5">Не вдалося автоматично отримати дані: '+e.message+'</td></tr>';
+  } finally {
+    $('refreshBtn').disabled = false;
+    $('refreshBtn').textContent = 'Оновити';
   }
-  home={lat:e.latlng.lat,lng:e.latlng.lng};localStorage.setItem('threat-home',JSON.stringify(home));
-  if(homeMarker)map.removeLayer(homeMarker);
-  homeMarker=L.marker(home).addTo(map).bindPopup('Контрольна точка').openPopup();
-  render();
-});
-
-document.getElementById('addTarget').onclick=()=>{pendingTarget=true};
-document.getElementById('clearTargets').onclick=()=>{targets.forEach(t=>map.removeLayer(t.marker));targets=[];render()};
-document.getElementById('useDefault').onclick=()=>{speed.value=450;speedMode.textContent='Підставлено за замовчуванням';speedMode.dataset.default='1'};
-speed.addEventListener('input',()=>{speedMode.textContent='Введено вручну';speedMode.dataset.default='0'});
-speedMode.dataset.default='1';
-
-function render(){
-  rows.innerHTML='';let nearest=Infinity,minEta=Infinity,total=0;
-
-  const sortedTargets=[...targets].map(t=>{
-    const d=home?km(home,{lat:t.lat,lng:t.lng}):0;
-    const h=d/t.speed;
-    return {t,d,h};
-  }).sort((a,b)=>a.d-b.d || a.h-b.h);
-
-  sortedTargets.forEach((item,index)=>{
-    const {t,d,h}=item;
-    const remain=t.count*(1-t.intercept/100), mins=h*60;
-    nearest=Math.min(nearest,d);minEta=Math.min(minEta,h);total+=t.count;
-    const tr=document.createElement('tr');
-    const order=index===0?'⚠️ 1 — найближча':(index+1)+'';
-    tr.innerHTML=`<td><strong>${order}</strong><br>${t.type}</td><td>${t.count}</td><td>${d.toFixed(1)} км</td><td>${t.speed} км/год ${t.speedDefault?'<small>(деф.)</small>':''}</td><td class="${threatClass(mins)}">${etaText(h)}</td><td>${t.intercept}%</td><td>≈ ${remain.toFixed(1)}</td><td><button data-id="${t.id}">×</button></td>`;
-    rows.appendChild(tr);
-  });
-
-  rows.querySelectorAll('button').forEach(b=>b.onclick=()=>{const id=+b.dataset.id;const t=targets.find(x=>x.id===id);if(t)map.removeLayer(t.marker);targets=targets.filter(x=>x.id!==id);render()});
-  nearestEl.textContent=targets.length?nearest.toFixed(1)+' км':'—';
-  minEtaEl.textContent=targets.length?etaText(minEta):'—';
-  totalEl.textContent=total;
-  const p=(+document.getElementById('intercept').value||0)/100;
-  document.getElementById('quickStats').innerHTML=[10,50,100].map(n=>`<span class="chip">${n} → очікувано залишається ≈ ${(n*(1-p)).toFixed(1)}</span>`).join('');
 }
-render();
+
+$('refreshBtn').addEventListener('click', load);
+load();
 
 let deferredPrompt;
-window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;const b=document.getElementById('installBtn');b.hidden=false;b.onclick=()=>deferredPrompt.prompt()});
-if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault(); deferredPrompt=e;
+  const b=$('installBtn'); b.hidden=false;
+  b.onclick=()=>deferredPrompt.prompt();
+});
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
