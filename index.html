@@ -1,81 +1,68 @@
 <!doctype html>
 <html lang="uk">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#111827" />
-  <title>Threat Calculator</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#111827">
+  <title>Threat Calculator — автоматична статистика</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="style.css">
-  <link rel="preconnect" href="https://unpkg.com">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
-  <header>
+<header>
+  <div>
+    <h1>Ймовірні загрози</h1>
+    <p>Автоматична статистична оцінка за завершеними офіційними зведеннями</p>
+  </div>
+  <button id="installBtn" hidden>Встановити</button>
+</header>
+
+<main>
+  <section class="panel status">
     <div>
-      <h1>Ймовірні загрози</h1>
-      <p>Оцінка відстані, ETA та статистичного залишку цілей</p>
+      <span class="eyebrow">Режим</span>
+      <h2>Повністю автоматичний</h2>
+      <p>Кількість та результат перехоплення беруться автоматично. Ручного введення немає.</p>
     </div>
-    <button id="installBtn" hidden>Встановити</button>
-  </header>
+    <button id="refreshBtn">Оновити</button>
+  </section>
 
-  <main>
-    <section class="panel">
-      <div class="grid two">
-        <label>Тип цілі
-          <select id="targetType">
-            <option value="БпЛА">БпЛА</option>
-            <option value="Крилата ракета">Крилата ракета</option>
-            <option value="Інша">Інша</option>
-          </select>
-        </label>
-        <label>Кількість
-          <input id="count" type="number" min="1" value="10">
-        </label>
-        <label>Швидкість, км/год
-          <input id="speed" type="number" min="1" value="450">
-          <small id="speedMode">Підставлено за замовчуванням</small>
-        </label>
-        <label>Ймовірність перехоплення, %
-          <input id="intercept" type="number" min="0" max="100" value="70">
-        </label>
-      </div>
-      <div class="actions">
-        <button id="useDefault">450 км/год</button>
-        <button id="addTarget">Додати ціль на карту</button>
-        <button id="clearTargets" class="secondary">Очистити цілі</button>
-      </div>
-      <p class="hint">Спочатку натисни на карту, щоб встановити контрольну точку. Потім натисни «Додати ціль» і вибери місце цілі на карті.</p>
-    </section>
+  <section class="stats four">
+    <div class="card"><span>Остання завершена атака</span><strong id="latestCount">—</strong><small>за офіційним підсумком</small></div>
+    <div class="card"><span>Збито / подавлено</span><strong id="latestNeutralized">—</strong><small id="latestRate">—</small></div>
+    <div class="card"><span>Середній показник</span><strong id="avgRate">—</strong><small id="reportsUsed">—</small></div>
+    <div class="card"><span>Статистично не нейтралізовано</span><strong id="latestRemaining">—</strong><small>арифметична різниця</small></div>
+  </section>
 
-    <section id="map"></section>
+  <section class="panel">
+    <h2>Автоматичний прогноз за статистикою</h2>
+    <p class="hint">Для кількості останньої завершеної атаки застосовується середній показник з останніх доступних завершених офіційних зведень.</p>
+    <div class="projection">
+      <div><span>Кількість</span><strong id="projectCount">—</strong></div>
+      <div><span>Очікувано нейтралізовано</span><strong id="projectNeutralized">—</strong></div>
+      <div><span>Очікуваний залишок</span><strong id="projectRemaining">—</strong></div>
+    </div>
+  </section>
 
-    <section class="stats">
-      <div class="card"><span>Найближча ціль</span><strong id="nearest">—</strong></div>
-      <div class="card"><span>Найменший ETA</span><strong id="minEta">—</strong></div>
-      <div class="card"><span>Усього цілей</span><strong id="totalTargets">0</strong></div>
-    </section>
+  <section class="panel">
+    <h2>Зведення, що увійшли в розрахунок</h2>
+    <div class="tableWrap">
+      <table>
+        <thead><tr><th>Дата</th><th>Запущено</th><th>Збито/подавлено</th><th>Показник</th><th>Джерело</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="5">Завантаження…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
 
-    <section class="panel">
-      <h2>Розрахунок</h2>
-      <div class="tableWrap">
-        <table>
-          <thead>
-            <tr><th>Тип</th><th>К-сть</th><th>Відстань</th><th>Швидкість</th><th>ETA</th><th>Перехоплення</th><th>Очікуваний залишок</th><th></th></tr>
-          </thead>
-          <tbody id="rows"></tbody>
-        </table>
-      </div>
-      <div class="examples">
-        <h3>Швидка статистика</h3>
-        <div id="quickStats"></div>
-      </div>
-    </section>
-  </main>
+  <section class="panel source">
+    <span class="eyebrow">Джерело</span>
+    <strong id="sourceName">Повітряні Сили ЗС України</strong>
+    <p id="policy">Використовуються лише завершені офіційні зведення старші 24 годин.</p>
+    <small id="updatedAt"></small>
+  </section>
+</main>
 
-  <footer>Це статистична оцінка, а не точний прогноз маршруту чи результату перехоплення.</footer>
-
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js"></script>
+<footer>Статистична оцінка не є прогнозом конкретного маршруту, точки удару чи результату майбутнього перехоплення.</footer>
+<script src="app.js"></script>
 </body>
 </html>
