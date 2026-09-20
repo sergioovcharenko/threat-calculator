@@ -140,4 +140,9 @@ window.addEventListener('beforeinstallprompt',e=>{
   const b=$('installBtn'); b.hidden=false;
   b.onclick=()=>deferredPrompt.prompt();
 });
-if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister()));
+}
+if('caches' in window){
+  caches.keys().then(keys=>keys.forEach(k=>caches.delete(k)));
+}
