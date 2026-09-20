@@ -47,7 +47,7 @@ function parseReport(text, date, link) {
 
 async function loadStats() {
   const response = await fetch(SOURCE, {
-    headers: { 'User-Agent': 'Mozilla/5.0 ThreatCalculator/1.1' }
+    headers: { 'User-Agent': 'Mozilla/5.0 ThreatCalculator/1.2' }
   });
   if (!response.ok) throw new Error('Official source HTTP ' + response.status);
   const html = await response.text();
@@ -112,6 +112,31 @@ app.get('/api/stats', async (req, res) => {
     res.json(cache.data);
   } catch (e) {
     res.status(503).json({ error: 'Не вдалося отримати завершені офіційні зведення', detail: e.message });
+  }
+});
+
+app.get('/api/geocode', async (req,res)=>{
+  try{
+    const q=String(req.query.q||'').trim();
+    if(!q) return res.status(400).json({error:'Введіть місто або адресу'});
+    const url='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&countrycodes=ua&q='+encodeURIComponent(q);
+    const r=await fetch(url,{
+      headers:{
+        'User-Agent':'ThreatCalculator/1.2 (public web app)',
+        'Accept-Language':'uk,en;q=0.8'
+      }
+    });
+    if(!r.ok) throw new Error('Geocoder HTTP '+r.status);
+    const raw=await r.json();
+    const results=raw.map(x=>({
+      lat:Number(x.lat),
+      lng:Number(x.lon),
+      displayName:x.display_name
+    })).filter(x=>Number.isFinite(x.lat)&&Number.isFinite(x.lng));
+    res.set('Cache-Control','no-store');
+    res.json({results});
+  }catch(e){
+    res.status(503).json({error:'Не вдалося виконати пошук місця'});
   }
 });
 
