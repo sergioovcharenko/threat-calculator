@@ -3,66 +3,125 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#111827">
-  <title>Threat Calculator — автоматична статистика</title>
+  <meta name="theme-color" content="#0a0d0b">
+  <title>Threat Calculator</title>
   <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <div>
-    <h1>Ймовірні загрози</h1>
-    <p>Автоматична статистична оцінка за завершеними офіційними зведеннями</p>
-  </div>
-  <button id="installBtn" hidden>Встановити</button>
-</header>
-
-<main>
-  <section class="panel status">
+<div class="shell">
+  <header class="topbar">
     <div>
-      <span class="eyebrow">Режим</span>
-      <h2>Повністю автоматичний</h2>
-      <p>Кількість та результат перехоплення беруться автоматично. Ручного введення немає.</p>
+      <span class="kicker">TACTICAL MONITOR</span>
+      <h1>Ймовірні загрози</h1>
+      <p>Автоматична статистика за завершеними офіційними зведеннями</p>
     </div>
-    <button id="refreshBtn">Оновити</button>
-  </section>
-
-  <section class="stats four">
-    <div class="card"><span>Остання завершена атака</span><strong id="latestCount">—</strong><small>за офіційним підсумком</small></div>
-    <div class="card"><span>Збито / подавлено</span><strong id="latestNeutralized">—</strong><small id="latestRate">—</small></div>
-    <div class="card"><span>Середній показник</span><strong id="avgRate">—</strong><small id="reportsUsed">—</small></div>
-    <div class="card"><span>Статистично не нейтралізовано</span><strong id="latestRemaining">—</strong><small>арифметична різниця</small></div>
-  </section>
-
-  <section class="panel">
-    <h2>Автоматичний прогноз за статистикою</h2>
-    <p class="hint">Для кількості останньої завершеної атаки застосовується середній показник з останніх доступних завершених офіційних зведень.</p>
-    <div class="projection">
-      <div><span>Кількість</span><strong id="projectCount">—</strong></div>
-      <div><span>Очікувано нейтралізовано</span><strong id="projectNeutralized">—</strong></div>
-      <div><span>Очікуваний залишок</span><strong id="projectRemaining">—</strong></div>
+    <div class="top-actions">
+      <button id="refreshBtn" class="btn btn-ghost">Оновити</button>
+      <button id="installBtn" class="btn btn-primary" hidden>Встановити</button>
     </div>
-  </section>
+  </header>
 
-  <section class="panel">
-    <h2>Зведення, що увійшли в розрахунок</h2>
-    <div class="tableWrap">
-      <table>
-        <thead><tr><th>Дата</th><th>Запущено</th><th>Збито/подавлено</th><th>Показник</th><th>Джерело</th></tr></thead>
-        <tbody id="rows"><tr><td colspan="5">Завантаження…</td></tr></tbody>
-      </table>
-    </div>
-  </section>
+  <main>
+    <section class="panel location-panel">
+      <div class="section-head">
+        <div>
+          <span class="kicker">КОНТРОЛЬНА ТОЧКА</span>
+          <h2>Оберіть місце</h2>
+        </div>
+        <div id="locationStatus" class="status-pill">Точка не задана</div>
+      </div>
 
-  <section class="panel source">
-    <span class="eyebrow">Джерело</span>
-    <strong id="sourceName">Повітряні Сили ЗС України</strong>
-    <p id="policy">Використовуються лише завершені офіційні зведення старші 24 годин.</p>
-    <small id="updatedAt"></small>
-  </section>
-</main>
+      <div class="location-controls">
+        <div class="search-wrap">
+          <input id="placeSearch" type="text" placeholder="Місто, населений пункт або адреса">
+          <button id="searchBtn" class="btn btn-primary">Знайти</button>
+        </div>
+        <button id="geoBtn" class="btn btn-ghost">Моя геолокація</button>
+      </div>
 
-<footer>Статистична оцінка не є прогнозом конкретного маршруту, точки удару чи результату майбутнього перехоплення.</footer>
+      <div id="searchResults" class="search-results" hidden></div>
+      <div id="map"></div>
+
+      <div class="point-meta">
+        <div>
+          <span>Обрана точка</span>
+          <strong id="pointName">—</strong>
+        </div>
+        <div>
+          <span>Координати</span>
+          <strong id="pointCoords">—</strong>
+        </div>
+      </div>
+      <p class="hint">Можна знайти місто/адресу, використати геолокацію або натиснути безпосередньо на карту. Точка зберігається на цьому пристрої.</p>
+    </section>
+
+    <section class="stats four">
+      <div class="card accent-red">
+        <span>Остання завершена атака</span>
+        <strong id="latestCount">—</strong>
+        <small>за офіційним підсумком</small>
+      </div>
+      <div class="card accent-amber">
+        <span>Збито / подавлено</span>
+        <strong id="latestNeutralized">—</strong>
+        <small id="latestRate">—</small>
+      </div>
+      <div class="card accent-green">
+        <span>Середній показник</span>
+        <strong id="avgRate">—</strong>
+        <small id="reportsUsed">—</small>
+      </div>
+      <div class="card">
+        <span>Статистично не нейтралізовано</span>
+        <strong id="latestRemaining">—</strong>
+        <small>арифметична різниця</small>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <span class="kicker">АВТОМАТИЧНИЙ РОЗРАХУНОК</span>
+          <h2>Статистична оцінка</h2>
+        </div>
+      </div>
+      <p class="hint">Для кількості останньої завершеної атаки застосовується середній показник останніх доступних завершених офіційних зведень.</p>
+      <div class="projection">
+        <div><span>Кількість</span><strong id="projectCount">—</strong></div>
+        <div><span>Очікувано нейтралізовано</span><strong id="projectNeutralized">—</strong></div>
+        <div><span>Очікуваний залишок</span><strong id="projectRemaining">—</strong></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <span class="kicker">АРХІВ</span>
+          <h2>Зведення в розрахунку</h2>
+        </div>
+      </div>
+      <div class="tableWrap">
+        <table>
+          <thead><tr><th>Дата</th><th>Запущено</th><th>Збито/подавлено</th><th>Показник</th><th>Джерело</th></tr></thead>
+          <tbody id="rows"><tr><td colspan="5">Завантаження…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel source">
+      <span class="kicker">ДЖЕРЕЛО</span>
+      <strong id="sourceName">Повітряні Сили ЗС України</strong>
+      <p id="policy">Використовуються лише завершені офіційні зведення старші 24 годин.</p>
+      <small id="updatedAt"></small>
+    </section>
+  </main>
+
+  <footer>Статистична оцінка не є прогнозом конкретного маршруту, точки удару чи результату майбутнього перехоплення.</footer>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
