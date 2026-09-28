@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Калькулятор геометрії спостереження</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e232c; --text:#eef2f7; --muted:#9aa4b2;
+    --accent:#5aa9ff; --ok:#42c77a; --warn:#f0b84b; --border:#2b3240;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  .wrap{max-width:1100px;margin:0 auto;padding:20px}
+  h1{font-size:24px;margin:0 0 8px}
+  .sub{color:var(--muted);margin-bottom:18px}
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px}
+  .card h2{font-size:16px;margin:0 0 12px}
+  label{display:block;font-size:13px;color:var(--muted);margin:10px 0 6px}
+  input{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:11px 12px;font-size:15px}
+  button{border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer;background:var(--accent);color:#07111f;margin-top:14px}
+  .results{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}
+  .metric{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:12px}
+  .metric .v{font-size:20px;font-weight:800;margin-top:4px}
+  .metric .k{font-size:12px;color:var(--muted)}
+  canvas{width:100%;height:440px;background:#11151b;border-radius:12px;border:1px solid var(--border)}
+  .note{font-size:12px;color:var(--muted);line-height:1.45;margin-top:10px}
+  @media(max-width:760px){
+    .grid{grid-template-columns:1fr}
+    .results{grid-template-columns:1fr}
+    canvas{height:360px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Калькулятор геометрії спостереження</h1>
+  <div class="sub">Навчальна модель у локальній системі координат X/Y. Азимут: 0° = Пн, 90° = Сх.</div>
+  <div class="grid">
+    <div class="card">
+      <h2>Вхідні дані</h2>
+      <label>X спостерігача, м</label><input id="ox" type="number" value="0" step="1">
+      <label>Y спостерігача, м</label><input id="oy" type="number" value="0" step="1">
+      <label>Азимут, °</label><input id="az" type="number" value="45" step="0.1" min="0" max="360">
+      <label>Різниця висот H, м</label><input id="h" type="number" value="1000" step="1" min="0">
+      <label>Кут місця над горизонтом, °</label><input id="el" type="number" value="30" step="0.1" min="0.1" max="89.9">
+      <label>Похибка азимуту ±, °</label><input id="azerr" type="number" value="2" step="0.1" min="0">
+      <label>Похибка висоти ±, м</label><input id="herr" type="number" value="100" step="1" min="0">
+      <label>Похибка кута місця ±, °</label><input id="elerr" type="number" value="1" step="0.1" min="0">
+      <button onclick="calc()">Розрахувати</button>
+      <div class="results">
+        <div class="metric"><div class="k">Горизонтальна дальність</div><div class="v" id="dist">—</div></div>
+        <div class="metric"><div class="k">Оцінка X</div><div class="v" id="tx">—</div></div>
+        <div class="metric"><div class="k">Оцінка Y</div><div class="v" id="ty">—</div></div>
+      </div>
+      <div class="note">Формула: D = H / tan(α). Зона похибки будується методом перебору крайніх значень азимуту, висоти та кута місця. Це спрощена геометрична оцінка, без урахування рельєфу, рефракції та похибок датчиків.</div>
+    </div>
+    <div class="card">
+      <h2>Схема</h2>
+      <canvas id="cv" width="900" height="650"></canvas>
+      <div class="note">Синя точка — спостерігач. Зелена — розрахована точка. Контур — орієнтовна зона невизначеності.</div>
+    </div>
+  </div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+function rad(d){return d*Math.PI/180}
+function fmt(v){ const a=Math.abs(v); if(a>=1000) return (v/1000).toFixed(2)+" км"; return Math.round(v)+" м"; }
+function calc(){
+  const ox=+$("ox").value, oy=+$("oy").value;
+  const az=+$("az").value, h=+$("h").value, el=+$("el").value;
+  const ae=+$("azerr").value, he=+$("herr").value, ee=+$("elerr").value;
+  if(el<=0 || el>=90){ alert("Кут місця має бути між 0° і 90°."); return; }
+  const D=h/Math.tan(rad(el));
+  const x=ox + D*Math.sin(rad(az));
+  const y=oy + D*Math.cos(rad(az));
+  $("dist").textContent=fmt(D); $("tx").textContent=fmt(x); $("ty").textContent=fmt(y);
+  const pts=[], azs=[az-ae, az+ae], hs=[Math.max(0,h-he), h+he], els=[Math.max(0.1,el-ee), Math.min(89.9,el+ee)];
+  for(const A of azs) for(const H of hs) for(const E of els){ const d=H/Math.tan(rad(E)); pts.push([ox+d*Math.sin(rad(A)), oy+d*Math.cos(rad(A))]); }
+  draw(ox,oy,x,y,pts);
+}
+function draw(ox,oy,tx,ty,pts){
+  const c=$("cv"), ctx=c.getContext("2d"); ctx.clearRect(0,0,c.width,c.height); ctx.fillStyle="#11151b"; ctx.fillRect(0,0,c.width,c.height);
+  const all=[[ox,oy],[tx,ty],...pts];
+  let minX=Math.min(...all.map(p=>p[0])), maxX=Math.max(...all.map(p=>p[0])), minY=Math.min(...all.map(p=>p[1])), maxY=Math.max(...all.map(p=>p[1]));
+  let span=Math.max(maxX-minX,maxY-minY,1000)*1.25; const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
+  minX=cx-span/2; maxX=cx+span/2; minY=cy-span/2; maxY=cy+span/2;
+  const sx=x=>40+(x-minX)/(maxX-minX)*(c.width-80), sy=y=>c.height-40-(y-minY)/(maxY-minY)*(c.height-80);
+  ctx.strokeStyle="#26303c"; ctx.lineWidth=1;
+  for(let i=0;i<=10;i++){ const gx=40+i*(c.width-80)/10, gy=40+i*(c.height-80)/10; ctx.beginPath();ctx.moveTo(gx,40);ctx.lineTo(gx,c.height-40);ctx.stroke(); ctx.beginPath();ctx.moveTo(40,gy);ctx.lineTo(c.width-40,gy);ctx.stroke(); }
+  ctx.strokeStyle="#5aa9ff"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(sx(ox),sy(oy)); ctx.lineTo(sx(tx),sy(ty)); ctx.stroke();
+  const sorted=pts.map(p=>({p,a:Math.atan2(p[1]-ty,p[0]-tx)})).sort((a,b)=>a.a-b.a).map(o=>o.p);
+  ctx.fillStyle="rgba(240,184,75,.14)"; ctx.strokeStyle="#f0b84b"; ctx.lineWidth=2; ctx.beginPath();
+  sorted.forEach((p,i)=> i?ctx.lineTo(sx(p[0]),sy(p[1])):ctx.moveTo(sx(p[0]),sy(p[1]))); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle="#5aa9ff"; ctx.beginPath();ctx.arc(sx(ox),sy(oy),7,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#42c77a"; ctx.beginPath();ctx.arc(sx(tx),sy(ty),7,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#eef2f7"; ctx.font="14px system-ui"; ctx.fillText("Спостерігач",sx(ox)+10,sy(oy)-10); ctx.fillText("Оцінена точка",sx(tx)+10,sy(ty)-10);
+}
+calc();
+</script>
+</body>
+</html>
